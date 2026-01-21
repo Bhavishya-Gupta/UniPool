@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:unipool/screens/create_ride_screen.dart'; // We will make this
 import 'package:unipool/screens/find_ride_screen.dart'; // We will make this
+import 'package:unipool/screens/my_rides_screen.dart';
+import 'package:unipool/screens/profile_screen.dart';
+
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -12,6 +15,22 @@ class HomeScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('UniPool Dashboard'),
         actions: [
+          IconButton(
+  icon: const Icon(Icons.account_circle),
+  onPressed: () {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (ctx) => const ProfileScreen()),
+    );
+  },
+),
+          IconButton(
+            icon: const Icon(Icons.directions_car),
+            onPressed: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (ctx) => const MyRidesScreen()),
+        );
+      },
+    ),
           IconButton(
             icon: const Icon(Icons.exit_to_app),
             onPressed: () => FirebaseAuth.instance.signOut(),

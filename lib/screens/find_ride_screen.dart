@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart';
+import 'package:unipool/screens/chat_screen.dart';
 
 class FindRideScreen extends StatelessWidget {
   const FindRideScreen({super.key});
@@ -50,23 +50,65 @@ class FindRideScreen extends StatelessWidget {
     );
   }
 
-  void _showRideDetails(BuildContext context, DocumentSnapshot ride) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Join Ride?'),
-        content: Text('Do you want to chat with ${ride['leaderName']} about this ride?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              // NEXT STEP: Navigate to Chat
-            }, 
-            child: const Text('Let\'s Chat')
+ void _showRideDetails(BuildContext context, DocumentSnapshot ride) async {
+  // 1. Fetch the leader's data from the 'users' collection
+  final leaderData = await FirebaseFirestore.instance
+      .collection('users')
+      .doc(ride['leaderId'])
+      .get();
+
+  final ridesCount = (leaderData.exists && (leaderData.data() as Map).containsKey('ridesCompleted'))
+      ? leaderData['ridesCompleted']
+      : 0;
+
+  showDialog(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Ride Details'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('From: ${ride['source']}'),
+          Text('To: ${ride['destination']}'),
+          Text('Date: ${ride['rideDate'].toString().split('T')[0]}'),
+          const Divider(),
+          const Text('Leader Info:', style: TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const CircleAvatar(child: Icon(Icons.person)), // Default icon since we skipped upload
+              const SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(ride['leaderName'], style: const TextStyle(fontSize: 16)),
+                  Text('Rides Completed: $ridesCount', 
+                    style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ],
           ),
         ],
       ),
-    );
-  }
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+        ElevatedButton(
+          onPressed: () {
+            Navigator.pop(ctx);
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (ctx) => ChatScreen(
+                  rideId: ride.id,
+                  rideDestination: ride['destination'],
+                ),
+              ),
+            );
+          },
+          child: const Text('Join & Chat'),
+        ),
+      ],
+    ),
+  );
+}
 }
