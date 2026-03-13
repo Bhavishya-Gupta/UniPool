@@ -67,12 +67,11 @@ class MyRidesScreen extends StatelessWidget {
     );
   }
 }
-
 class RideList extends StatelessWidget {
   final bool isLeader;
   const RideList({super.key, required this.isLeader});
 
-  // Moved the logic here so the widget can access it
+  // --- LOGIC: Complete Ride ---
   Future<void> _completeRide(BuildContext context, String rideId, String leaderId) async {
     try {
       await FirebaseFirestore.instance
@@ -89,13 +88,49 @@ class RideList extends StatelessWidget {
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Ride marked as completed! Trust score updated.')),
+          const SnackBar(content: Text('Ride marked as completed!')),
         );
       }
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  // --- LOGIC: Delete Ride ---
+  Future<void> _deleteRide(BuildContext context, String rideId) async {
+    // Show confirmation dialog
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Ride?'),
+        content: const Text('Are you sure you want to cancel and delete this ride? This cannot be undone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true), 
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      await FirebaseFirestore.instance.collection('rides').doc(rideId).delete();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ride deleted successfully.')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error deleting: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -122,23 +157,9 @@ class RideList extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(22),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF6C63FF).withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    isLeader ? Icons.drive_eta_rounded : Icons.person_search_rounded,
-                    size: 42,
-                    color: const Color(0xFF6C63FF),
-                  ),
-                ),
+                Icon(isLeader ? Icons.drive_eta_rounded : Icons.person_search_rounded, size: 42, color: Colors.grey),
                 const SizedBox(height: 16),
-                Text(
-                  isLeader ? 'No rides posted yet' : 'No joined rides yet',
-                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17, color: Color(0xFF0F0C29)),
-                ),
+                Text(isLeader ? 'No rides posted' : 'No joined rides'),
               ],
             ),
           );
@@ -155,49 +176,40 @@ class RideList extends StatelessWidget {
               margin: const EdgeInsets.only(bottom: 12),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               child: ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                title: Text(
-                  '${ride['source']} → ${ride['destination']}',
-                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: Color(0xFF0F0C29)),
-                ),
-                subtitle: Text(
-                  "Status: ${status.toUpperCase()}",
-                  style: TextStyle(
-                    fontSize: 12, 
-                    color: status == 'open' ? Colors.green : Colors.grey,
-                    fontWeight: FontWeight.bold
-                  ),
-                ),
+                title: Text('${ride['source']} → ${ride['destination']}', 
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Text("Status: ${status.toUpperCase()}",
+                    style: TextStyle(color: status == 'open' ? Colors.green : Colors.grey, fontSize: 12)),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Only show the completion checkmark if the user is the leader AND the ride is open
+                    // DELETE BUTTON (Only for Leaders)
+                    if (isLeader)
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
+                        onPressed: () => _deleteRide(context, ride.id),
+                      ),
+                    
+                    // COMPLETE BUTTON (Only if Open)
                     if (isLeader && status == 'open')
                       IconButton(
                         icon: const Icon(Icons.check_circle_outline_rounded, color: Colors.green),
                         onPressed: () => _completeRide(context, ride.id, user.uid),
                       ),
-                    
-                    const SizedBox(width: 4),
-                    
-                    Container(
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF6C63FF).withOpacity(0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: IconButton(
-                        icon: const Icon(Icons.chat_bubble_outline_rounded, color: Color(0xFF6C63FF), size: 20),
-                        onPressed: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (ctx) => ChatScreen(
-                                rideId: ride.id,
-                                rideDestination: ride['destination'],
-                              ),
+
+                    // CHAT BUTTON
+                    IconButton(
+                      icon: const Icon(Icons.chat_bubble_outline_rounded, color: Color(0xFF6C63FF)),
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (ctx) => ChatScreen(
+                              rideId: ride.id,
+                              rideDestination: ride['destination'],
                             ),
-                          );
-                        },
-                      ),
+                          ),
+                        );
+                      },
                     ),
                   ],
                 ),
