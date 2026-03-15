@@ -1,16 +1,19 @@
-import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:unipool/theme/app_theme.dart';
+import 'package:unipool/widgets/app_ui.dart';
 
 class ChatScreen extends StatefulWidget {
-  final String rideId;
-  final String rideDestination;
-
   const ChatScreen({
     super.key,
     required this.rideId,
     required this.rideDestination,
   });
+
+  final String rideId;
+  final String rideDestination;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -19,9 +22,17 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final _messageController = TextEditingController();
 
-  void _sendMessage() async {
+  @override
+  void dispose() {
+    _messageController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _sendMessage() async {
     final message = _messageController.text.trim();
-    if (message.isEmpty) return;
+    if (message.isEmpty) {
+      return;
+    }
 
     final user = FirebaseAuth.instance.currentUser!;
 
@@ -30,15 +41,18 @@ class _ChatScreenState extends State<ChatScreen> {
         .doc(widget.rideId)
         .collection('messages')
         .add({
-      'text': message,
-      'createdAt': Timestamp.now(),
-      'senderId': user.uid,
-      'senderEmail': user.email,
-    });
+          'text': message,
+          'createdAt': Timestamp.now(),
+          'senderId': user.uid,
+          'senderEmail': user.email,
+        });
+
     await FirebaseFirestore.instance
         .collection('rides')
         .doc(widget.rideId)
-        .update({'participants': FieldValue.arrayUnion([user.uid])});
+        .update({
+          'participants': FieldValue.arrayUnion([user.uid]),
+        });
 
     _messageController.clear();
   }
@@ -48,223 +62,235 @@ class _ChatScreenState extends State<ChatScreen> {
     final currentUser = FirebaseAuth.instance.currentUser!;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F6FB),
-      appBar: AppBar(
-        elevation: 0,
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFF0F0C29), Color(0xFF302B63)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-        ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.15),
-                shape: BoxShape.circle,
+      body: AppGradientBackground(
+        useSafeArea: false,
+        child: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              AppPageHeader(
+                title: widget.rideDestination,
+                subtitle:
+                    'Keep pickup timing, confirmations, and small updates in one focused thread.',
+                leading: _TopBackButton(
+                  onTap: () => Navigator.of(context).pop(),
+                ),
+                badge: const AppPill(
+                  label: 'Ride chat',
+                  icon: Icons.chat_bubble_outline_rounded,
+                  foregroundColor: Colors.white,
+                  backgroundColor: Color(0x33FFFFFF),
+                ),
               ),
-              child: const Icon(Icons.directions_car_rounded, color: Colors.white, size: 18),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.rideDestination,
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const Text('Ride Chat', style: TextStyle(color: Colors.white60, fontSize: 12)),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: StreamBuilder(
-              stream: FirebaseFirestore.instance
-                  .collection('rides')
-                  .doc(widget.rideId)
-                  .collection('messages')
-                  .orderBy('createdAt', descending: true)
-                  .snapshots(),
-              builder: (ctx, AsyncSnapshot<QuerySnapshot> snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator(color: Color(0xFF6C63FF)));
-                }
-
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(22),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF6C63FF).withOpacity(0.1),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(Icons.chat_bubble_outline_rounded, size: 42, color: Color(0xFF6C63FF)),
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('rides')
+                      .doc(widget.rideId)
+                      .collection('messages')
+                      .orderBy('createdAt', descending: true)
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(
+                        child: CircularProgressIndicator(
+                          color: AppColors.primary,
                         ),
-                        const SizedBox(height: 16),
-                        const Text('No messages yet.', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: Color(0xFF302B63))),
-                        const SizedBox(height: 6),
-                        Text('Say hi to your poolmates! 👋', style: TextStyle(color: Colors.grey[500], fontSize: 13)),
-                      ],
-                    ),
-                  );
-                }
+                      );
+                    }
 
-                final messages = snapshot.data!.docs;
+                    if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                      return const AppEmptyState(
+                        icon: Icons.forum_outlined,
+                        title: 'No messages yet',
+                        subtitle:
+                            'Start the conversation with pickup details or a quick hello.',
+                      );
+                    }
 
-                return ListView.builder(
-                  reverse: true,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  itemCount: messages.length,
-                  itemBuilder: (ctx, index) {
-                    final msgData = messages[index];
-                    final isMe = msgData['senderId'] == currentUser.uid;
-                    final senderName = isMe ? 'You' : msgData['senderEmail'].toString().split('@')[0];
+                    final messages = snapshot.data!.docs;
 
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: Align(
-                        alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            if (!isMe) ...[
-                              CircleAvatar(
-                                radius: 16,
-                                backgroundColor: const Color(0xFF302B63),
-                                child: Text(
-                                  senderName.isNotEmpty ? senderName[0].toUpperCase() : '?',
-                                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                    return ListView.builder(
+                      reverse: true,
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                      itemCount: messages.length,
+                      itemBuilder: (context, index) {
+                        final msgData = messages[index];
+                        final isMe = msgData['senderId'] == currentUser.uid;
+                        final senderName = isMe
+                            ? 'You'
+                            : msgData['senderEmail']
+                                  .toString()
+                                  .split('@')
+                                  .first;
+
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: Align(
+                            alignment: isMe
+                                ? Alignment.centerRight
+                                : Alignment.centerLeft,
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints(
+                                maxWidth:
+                                    MediaQuery.of(context).size.width * 0.76,
+                              ),
+                              child: Container(
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  gradient: isMe
+                                      ? AppColors.accentGradient
+                                      : null,
+                                  color: isMe ? null : Colors.white,
+                                  borderRadius: BorderRadius.only(
+                                    topLeft: const Radius.circular(22),
+                                    topRight: const Radius.circular(22),
+                                    bottomLeft: Radius.circular(isMe ? 22 : 8),
+                                    bottomRight: Radius.circular(isMe ? 8 : 22),
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: AppColors.primary.withValues(
+                                        alpha: 0.08,
+                                      ),
+                                      blurRadius: 20,
+                                      offset: const Offset(0, 10),
+                                    ),
+                                  ],
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: isMe
+                                      ? CrossAxisAlignment.end
+                                      : CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      msgData['text'],
+                                      style: TextStyle(
+                                        color: isMe
+                                            ? Colors.white
+                                            : AppColors.ink,
+                                        fontSize: 15,
+                                        height: 1.4,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      '$senderName · ${_formatTime(msgData['createdAt'])}',
+                                      style: TextStyle(
+                                        color: isMe
+                                            ? Colors.white.withValues(
+                                                alpha: 0.78,
+                                              )
+                                            : AppColors.muted,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                              const SizedBox(width: 8),
-                            ],
-                            Container(
-                              constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.65),
-                              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
-                              decoration: BoxDecoration(
-                                gradient: isMe
-                                    ? const LinearGradient(colors: [Color(0xFF6C63FF), Color(0xFFB06AB3)])
-                                    : null,
-                                color: isMe ? null : Colors.white,
-                                borderRadius: BorderRadius.only(
-                                  topLeft: const Radius.circular(18),
-                                  topRight: const Radius.circular(18),
-                                  bottomLeft: Radius.circular(isMe ? 18 : 4),
-                                  bottomRight: Radius.circular(isMe ? 4 : 18),
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: isMe
-                                        ? const Color(0xFF6C63FF).withOpacity(0.3)
-                                        : Colors.black.withOpacity(0.06),
-                                    blurRadius: 12,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
-                              ),
-                              child: Column(
-                                crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    msgData['text'],
-                                    style: TextStyle(
-                                      fontSize: 15,
-                                      color: isMe ? Colors.white : const Color(0xFF1A1A2E),
-                                      height: 1.4,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    senderName,
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w600,
-                                      color: isMe ? Colors.white60 : Colors.grey[500],
-                                    ),
-                                  ),
-                                ],
-                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+              AnimatedPadding(
+                duration: const Duration(milliseconds: 180),
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  10,
+                  16,
+                  MediaQuery.of(context).viewInsets.bottom + 16,
+                ),
+                child: AppSurfaceCard(
+                  padding: const EdgeInsets.all(12),
+                  radius: 28,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _messageController,
+                          minLines: 1,
+                          maxLines: 4,
+                          onSubmitted: (_) => _sendMessage(),
+                          decoration: const InputDecoration(
+                            hintText: 'Type a message',
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            filled: false,
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 12,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: AppColors.accentGradient,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.primary.withValues(alpha: 0.2),
+                              blurRadius: 18,
+                              offset: const Offset(0, 10),
                             ),
                           ],
                         ),
+                        child: IconButton(
+                          onPressed: _sendMessage,
+                          icon: const Icon(
+                            Icons.send_rounded,
+                            color: Colors.white,
+                          ),
+                        ),
                       ),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.06),
-                  blurRadius: 20,
-                  offset: const Offset(0, -4),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF4F6FB),
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(color: const Color(0xFFE0E0F0)),
-                    ),
-                    child: TextField(
-                      controller: _messageController,
-                      style: const TextStyle(fontSize: 15, color: Color(0xFF1A1A2E)),
-                      decoration: InputDecoration(
-                        hintText: 'Type a message...',
-                        hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                        border: InputBorder.none,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(colors: [Color(0xFF6C63FF), Color(0xFFB06AB3)]),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(color: Color(0x556C63FF), blurRadius: 12, offset: Offset(0, 4)),
                     ],
                   ),
-                  child: IconButton(
-                    onPressed: _sendMessage,
-                    icon: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
-                  ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
+      ),
+    );
+  }
+
+  String _formatTime(dynamic timestamp) {
+    if (timestamp is Timestamp) {
+      return DateFormat('h:mm a').format(timestamp.toDate());
+    }
+    return '';
+  }
+}
+
+class _TopBackButton extends StatelessWidget {
+  const _TopBackButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: const SizedBox(
+          width: 44,
+          height: 44,
+          child: Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: Colors.white,
+            size: 18,
+          ),
+        ),
       ),
     );
   }

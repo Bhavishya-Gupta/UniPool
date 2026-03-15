@@ -1,9 +1,12 @@
 import 'dart:io';
-import 'package:flutter/material.dart';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:unipool/theme/app_theme.dart';
+import 'package:unipool/widgets/app_ui.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -14,39 +17,67 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final _nameController = TextEditingController();
+
   bool _isUploading = false;
+  bool _isSaving = false;
   String? _imageUrl;
+  int _ridesCompleted = 0;
 
   @override
   void initState() {
     super.initState();
+    _nameController.addListener(() {
+      if (mounted) {
+        setState(() {});
+      }
+    });
     _loadUserData();
   }
 
-  void _loadUserData() async {
-    final user = FirebaseAuth.instance.currentUser!;
-    final userData = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
 
-    if (userData.exists) {
-      final data = userData.data() as Map<String, dynamic>;
-      setState(() {
-        _nameController.text = data.containsKey('name') ? data['name'] : '';
-        _imageUrl = data.containsKey('photoUrl') ? data['photoUrl'] : null;
-      });
+  Future<void> _loadUserData() async {
+    final user = FirebaseAuth.instance.currentUser!;
+    final userData = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .get();
+    final data = userData.data();
+
+    if (!mounted || data == null) {
+      return;
     }
+
+    setState(() {
+      _nameController.text = (data['name'] as String?) ?? '';
+      _imageUrl = data['photoUrl'] as String?;
+      _ridesCompleted = (data['ridesCompleted'] as num?)?.toInt() ?? 0;
+    });
   }
 
   Future<void> _pickAndUploadImage() async {
     final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 50);
+    final pickedFile = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 60,
+    );
 
-    if (pickedFile == null) return;
+    if (pickedFile == null) {
+      return;
+    }
 
     setState(() => _isUploading = true);
 
     try {
       final user = FirebaseAuth.instance.currentUser!;
-      final storageRef = FirebaseStorage.instance.ref().child('user_images').child('${user.uid}.jpg');
+      final storageRef = FirebaseStorage.instance
+          .ref()
+          .child('user_images')
+          .child('${user.uid}.jpg');
 
       await storageRef.putFile(File(pickedFile.path));
       final url = await storageRef.getDownloadURL();
@@ -55,278 +86,323 @@ class _ProfileScreenState extends State<ProfileScreen> {
         'photoUrl': url,
       }, SetOptions(merge: true));
 
-      setState(() => _imageUrl = url);
+      if (mounted) {
+        setState(() => _imageUrl = url);
+        showAppSnackBar(context, 'Profile photo updated.', isError: false);
+      }
     } catch (e) {
-      print(e);
+      if (mounted) {
+        showAppSnackBar(context, 'Could not upload image: $e', isError: true);
+      }
     } finally {
-      setState(() => _isUploading = false);
+      if (mounted) {
+        setState(() => _isUploading = false);
+      }
     }
   }
 
-  void _saveProfile() async {
+  Future<void> _saveProfile() async {
     final user = FirebaseAuth.instance.currentUser!;
-    await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-      'name': _nameController.text.trim(),
-    }, SetOptions(merge: true));
+    setState(() => _isSaving = true);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Row(
-          children: [
-            Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
-            SizedBox(width: 10),
-            Text('Profile Updated!', style: TextStyle(fontWeight: FontWeight.w600)),
-          ],
-        ),
-        backgroundColor: const Color(0xFF22C55E),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        margin: const EdgeInsets.all(16),
-      ),
-    );
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        'name': _nameController.text.trim(),
+      }, SetOptions(merge: true));
+
+      if (mounted) {
+        showAppSnackBar(context, 'Profile updated.', isError: false);
+      }
+    } catch (e) {
+      if (mounted) {
+        showAppSnackBar(context, 'Could not save profile: $e', isError: true);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    final displayName = _nameController.text.trim().isEmpty
+        ? user?.email?.split('@').first ?? 'Student'
+        : _nameController.text.trim();
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F6FB),
-      body: Column(
-        children: [
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFF0F0C29), Color(0xFF302B63)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(30),
-                bottomRight: Radius.circular(30),
-              ),
-            ),
-            child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 10, 20, 32),
-                child: Column(
+      body: AppGradientBackground(
+        useSafeArea: false,
+        child: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              AppPageHeader(
+                title: 'Profile',
+                subtitle: 'Update your name and photo.',
+                leading: _TopBackButton(
+                  onTap: () => Navigator.of(context).pop(),
+                ),
+                badge: const AppPill(
+                  label: 'Profile',
+                  icon: Icons.person_outline_rounded,
+                  foregroundColor: Colors.white,
+                  backgroundColor: Color(0x33FFFFFF),
+                ),
+                bottom: Row(
                   children: [
-                    Row(
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
-                          onPressed: () => Navigator.of(context).pop(),
-                        ),
-                        const Text('My Profile', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 18)),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
                     GestureDetector(
                       onTap: _pickAndUploadImage,
                       child: Stack(
-                        alignment: Alignment.center,
                         children: [
                           Container(
-                            width: 100,
-                            height: 100,
+                            width: 84,
+                            height: 84,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              gradient: const LinearGradient(colors: [Color(0xFF6C63FF), Color(0xFFB06AB3)]),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: const Color(0xFF6C63FF).withOpacity(0.4),
-                                  blurRadius: 20,
-                                  spreadRadius: 2,
-                                ),
-                              ],
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.65),
+                                width: 3,
+                              ),
+                              image: _imageUrl != null
+                                  ? DecorationImage(
+                                      image: NetworkImage(_imageUrl!),
+                                      fit: BoxFit.cover,
+                                    )
+                                  : null,
+                              color: Colors.white.withValues(alpha: 0.12),
                             ),
-                            child: _imageUrl != null
-                                ? ClipOval(
-                                    child: Image.network(_imageUrl!, fit: BoxFit.cover, width: 100, height: 100),
+                            child: _imageUrl == null
+                                ? const Icon(
+                                    Icons.person_rounded,
+                                    size: 38,
+                                    color: Colors.white,
                                   )
-                                : const Icon(Icons.person_rounded, size: 52, color: Colors.white),
+                                : null,
                           ),
                           if (_isUploading)
-                            Container(
-                              width: 100,
-                              height: 100,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.black.withOpacity(0.4),
+                            Positioned.fill(
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.35),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Center(
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2.4,
+                                  ),
+                                ),
                               ),
-                              child: const Center(child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5)),
                             ),
                           Positioned(
-                            bottom: 0,
                             right: 0,
+                            bottom: 0,
                             child: Container(
-                              padding: const EdgeInsets.all(6),
+                              width: 30,
+                              height: 30,
                               decoration: const BoxDecoration(
                                 color: Colors.white,
                                 shape: BoxShape.circle,
                               ),
-                              child: const Icon(Icons.camera_alt_rounded, size: 16, color: Color(0xFF302B63)),
+                              child: const Icon(
+                                Icons.camera_alt_rounded,
+                                size: 16,
+                                color: AppColors.primary,
+                              ),
                             ),
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 10),
-                    Text(
-                      _nameController.text.isNotEmpty ? _nameController.text : 'UniPooler',
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 18),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      FirebaseAuth.instance.currentUser?.email ?? '',
-                      style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 13),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            displayName,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            user?.email ?? '',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.72),
+                              fontWeight: FontWeight.w500,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
               ),
-            ),
-          ),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 4),
-                  FutureBuilder<DocumentSnapshot>(
-                    future: FirebaseFirestore.instance
-                        .collection('users')
-                        .doc(FirebaseAuth.instance.currentUser!.uid)
-                        .get(),
-                    builder: (ctx, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator(color: Color(0xFF6C63FF)));
-                      }
-
-                      final data = snapshot.data?.data() as Map<String, dynamic>?;
-                      final rides = (data != null && data.containsKey('ridesCompleted'))
-                          ? data['ridesCompleted']
-                          : 0;
-
-                      return Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF6C63FF), Color(0xFFB06AB3)],
-                          ),
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF6C63FF).withOpacity(0.35),
-                              blurRadius: 20,
-                              offset: const Offset(0, 8),
-                            ),
-                          ],
-                        ),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      AppSurfaceCard(
                         child: Row(
                           children: [
-                            Container(
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              child: const Icon(Icons.verified_rounded, color: Colors.white, size: 28),
+                            const AppIconBadge(
+                              icon: Icons.verified_rounded,
+                              color: AppColors.secondary,
+                              size: 24,
                             ),
-                            const SizedBox(width: 16),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text('Rides Completed', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
-                                const SizedBox(height: 2),
-                                Text('$rides', style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w900)),
-                              ],
-                            ),
-                            const Spacer(),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(20),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Rides completed',
+                                    style: TextStyle(
+                                      color: AppColors.muted,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '$_ridesCompleted',
+                                    style: const TextStyle(
+                                      color: AppColors.ink,
+                                      fontSize: 28,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              child: const Text('🏆 Trusted', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12)),
+                            ),
+                            const AppPill(
+                              label: 'Trusted rider',
+                              foregroundColor: AppColors.secondary,
+                              backgroundColor: Color(0xFF153636),
                             ),
                           ],
                         ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'PROFILE DETAILS',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF6C63FF), letterSpacing: 1.2),
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 16, offset: const Offset(0, 4)),
-                      ],
-                    ),
-                    child: TextField(
-                      controller: _nameController,
-                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Color(0xFF1A1A2E)),
-                      decoration: InputDecoration(
-                        prefixIcon: const Icon(Icons.badge_rounded, color: Color(0xFF6C63FF), size: 20),
-                        labelText: 'Display Name',
-                        labelStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(14),
-                          borderSide: BorderSide(color: Colors.grey[200]!),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(14),
-                          borderSide: BorderSide(color: Colors.grey[200]!),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(14),
-                          borderSide: const BorderSide(color: Color(0xFF6C63FF), width: 1.8),
-                        ),
-                        filled: true,
-                        fillColor: const Color(0xFFF8F9FF),
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                  Container(
-                    width: double.infinity,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(colors: [Color(0xFF6C63FF), Color(0xFFB06AB3)]),
-                      borderRadius: BorderRadius.circular(18),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF6C63FF).withOpacity(0.45),
-                          blurRadius: 20,
-                          offset: const Offset(0, 8),
+                      const SizedBox(height: 20),
+                      AppSurfaceCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const AppSectionHeader(
+                              title: 'Profile details',
+                              subtitle:
+                                  'These details are visible on your rides.',
+                            ),
+                            const SizedBox(height: 18),
+                            TextField(
+                              controller: _nameController,
+                              decoration: const InputDecoration(
+                                labelText: 'Display name',
+                                prefixIcon: Icon(
+                                  Icons.badge_outlined,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 18,
+                                vertical: 18,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.surface,
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: AppColors.line),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.mail_outline_rounded,
+                                    color: AppColors.secondary,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          'Email',
+                                          style: TextStyle(
+                                            color: AppColors.muted,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          user?.email ?? '',
+                                          style: const TextStyle(
+                                            color: AppColors.ink,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                    child: ElevatedButton.icon(
-                      onPressed: _saveProfile,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.transparent,
-                        shadowColor: Colors.transparent,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
                       ),
-                      icon: const Icon(Icons.save_rounded, color: Colors.white, size: 20),
-                      label: const Text(
-                        'Save Changes',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white),
+                      const SizedBox(height: 28),
+                      SizedBox(
+                        width: double.infinity,
+                        child: AppPrimaryButton(
+                          label: 'Save changes',
+                          icon: Icons.save_rounded,
+                          isLoading: _isSaving,
+                          onPressed: _saveProfile,
+                        ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
-        ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TopBackButton extends StatelessWidget {
+  const _TopBackButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: const SizedBox(
+          width: 44,
+          height: 44,
+          child: Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: Colors.white,
+            size: 18,
+          ),
+        ),
       ),
     );
   }

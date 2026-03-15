@@ -1,9 +1,11 @@
-import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 import 'package:unipool/screens/create_ride_screen.dart';
 import 'package:unipool/screens/find_ride_screen.dart';
 import 'package:unipool/screens/my_rides_screen.dart';
 import 'package:unipool/screens/profile_screen.dart';
+import 'package:unipool/theme/app_theme.dart';
+import 'package:unipool/widgets/app_ui.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -11,265 +13,323 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
+    final greetingName = _displayName(user);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F6FB),
-      body: Column(
-        children: [
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFF0F0C29), Color(0xFF302B63)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(30),
-                bottomRight: Radius.circular(30),
-              ),
-            ),
-            child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 10, 20, 28),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+      body: AppGradientBackground(
+        useSafeArea: false,
+        child: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              AppPageHeader(
+                title: 'Ready for your next ride?',
+                subtitle: 'Post a ride or find one already going your way.',
+                badge: _brandBadge(),
+                actions: [
+                  _HeaderIconButton(
+                    icon: Icons.logout_rounded,
+                    onTap: () => FirebaseAuth.instance.signOut(),
+                  ),
+                ],
+                bottom: Column(
                   children: [
+                    _HeaderInfoCard(
+                      label: 'Signed in as',
+                      value: greetingName,
+                      icon: Icons.waving_hand_rounded,
+                    ),
+                    const SizedBox(height: 12),
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.12),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: const Row(
-                                children: [
-                                  Text('🚕', style: TextStyle(fontSize: 16)),
-                                  SizedBox(width: 6),
-                                  Text('UniPool', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16)),
-                                ],
-                              ),
-                            ),
-                          ],
+                        Expanded(
+                          child: _HeaderQuickAction(
+                            icon: Icons.route_rounded,
+                            title: 'My activity',
+                            subtitle: 'Joined and leading rides',
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const MyRidesScreen(),
+                                ),
+                              );
+                            },
+                          ),
                         ),
-                        Row(
-                          children: [
-                            _appBarIconBtn(Icons.account_circle_outlined, () {
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _HeaderQuickAction(
+                            icon: Icons.account_circle_rounded,
+                            title: 'My profile',
+                            subtitle: 'Photo, name, and stats',
+                            onTap: () {
                               Navigator.of(context).push(
-                                MaterialPageRoute(builder: (ctx) => const ProfileScreen()),
+                                MaterialPageRoute(
+                                  builder: (_) => const ProfileScreen(),
+                                ),
                               );
-                            }),
-                            const SizedBox(width: 6),
-                            _appBarIconBtn(Icons.directions_car_outlined, () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(builder: (ctx) => const MyRidesScreen()),
-                              );
-                            }),
-                            const SizedBox(width: 6),
-                            _appBarIconBtn(Icons.exit_to_app_rounded, () => FirebaseAuth.instance.signOut()),
-                          ],
+                            },
+                          ),
                         ),
                       ],
-                    ),
-                    const SizedBox(height: 24),
-                    const Text(
-                      'Where are we\ngoing today? 🗺️',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 28,
-                        fontWeight: FontWeight.w900,
-                        height: 1.2,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      user?.email?.split('@')[0] != null
-                          ? 'Welcome back, ${user!.email!.split('@')[0]} 👋'
-                          : 'Welcome back 👋',
-                      style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 14),
                     ),
                   ],
                 ),
               ),
-            ),
-          ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                children: [
-                  const SizedBox(height: 8),
-                  _RideOptionCard(
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(builder: (ctx) => const CreateRideScreen()),
-                      );
-                    },
-                    icon: Icons.drive_eta_rounded,
-                    title: 'Be a Leader',
-                    subtitle: "I'll book the cab, join me!",
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF6C63FF), Color(0xFF4F46E5)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    badge: '🚖 Post a Ride',
-                  ),
-                  const SizedBox(height: 16),
-                  _RideOptionCard(
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(builder: (ctx) => const FindRideScreen()),
-                      );
-                    },
-                    icon: Icons.person_search_rounded,
-                    title: 'Be a Pooler',
-                    subtitle: "I'm looking for a ride.",
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF11998E), Color(0xFF38EF7D)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    badge: '🔍 Find a Ride',
-                  ),
-                  const SizedBox(height: 24),
-                  Row(
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _StatPill(icon: Icons.local_taxi_rounded, label: 'Save money', color: const Color(0xFF6C63FF)),
-                      const SizedBox(width: 10),
-                      _StatPill(icon: Icons.eco_rounded, label: 'Go green', color: const Color(0xFF11998E)),
-                      const SizedBox(width: 10),
-                      _StatPill(icon: Icons.people_alt_rounded, label: 'Meet peers', color: const Color(0xFFB06AB3)),
+                      const AppSectionHeader(
+                        title: 'Choose your role',
+                        subtitle: 'Start with one of the two main actions.',
+                      ),
+                      const SizedBox(height: 18),
+                      _ActionCard(
+                        title: 'Lead a ride',
+                        subtitle: 'Create the route and let others join.',
+                        icon: Icons.local_taxi_rounded,
+                        gradient: AppColors.accentGradient,
+                        chipLabel: 'Post a ride',
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const CreateRideScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      _ActionCard(
+                        title: 'Find an open seat',
+                        subtitle: 'Browse rides and join one that fits.',
+                        icon: Icons.travel_explore_rounded,
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF0F766E), Color(0xFF14B8A6)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        chipLabel: 'Browse rides',
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const FindRideScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 24),
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: const [
+                          _BenefitTile(
+                            icon: Icons.savings_outlined,
+                            color: AppColors.primary,
+                            title: 'Lower cost',
+                            subtitle: 'Split rides instead of booking solo.',
+                          ),
+                          _BenefitTile(
+                            icon: Icons.access_time_rounded,
+                            color: AppColors.secondary,
+                            title: 'Fast coordination',
+                            subtitle: 'Rides and chat stay in one place.',
+                          ),
+                          _BenefitTile(
+                            icon: Icons.eco_outlined,
+                            color: AppColors.accent,
+                            title: 'Fewer empty seats',
+                            subtitle: 'Share trips when routes overlap.',
+                          ),
+                        ],
+                      ),
                     ],
                   ),
-                ],
+                ),
               ),
-            ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _brandBadge() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.local_taxi_rounded, color: Colors.white, size: 16),
+          SizedBox(width: 8),
+          Text(
+            'UniPool',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
           ),
         ],
       ),
     );
   }
 
-  Widget _appBarIconBtn(IconData icon, VoidCallback onPressed) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.12),
-        shape: BoxShape.circle,
-      ),
-      child: IconButton(
-        icon: Icon(icon, color: Colors.white, size: 20),
-        onPressed: onPressed,
-        padding: const EdgeInsets.all(8),
-        constraints: const BoxConstraints(),
+  String _displayName(User? user) {
+    final email = user?.email;
+    if (email == null || email.isEmpty) {
+      return 'student rider';
+    }
+    return email.split('@').first.replaceAll('.', ' ');
+  }
+}
+
+class _HeaderIconButton extends StatelessWidget {
+  const _HeaderIconButton({required this.icon, required this.onTap});
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: Icon(icon, color: Colors.white, size: 20),
+        ),
       ),
     );
   }
 }
 
-class _RideOptionCard extends StatelessWidget {
-  final VoidCallback onTap;
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final LinearGradient gradient;
-  final String badge;
-
-  const _RideOptionCard({
-    required this.onTap,
+class _HeaderInfoCard extends StatelessWidget {
+  const _HeaderInfoCard({
+    required this.label,
+    required this.value,
     required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.gradient,
-    required this.badge,
   });
+
+  final String label;
+  final String value;
+  final IconData icon;
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: Colors.white, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.65),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeaderQuickAction extends StatelessWidget {
+  const _HeaderQuickAction({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(22),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(24),
-        child: Container(
-          width: double.infinity,
-          decoration: BoxDecoration(
-            gradient: gradient,
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(
-                color: gradient.colors.first.withOpacity(0.35),
-                blurRadius: 20,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: Stack(
+        borderRadius: BorderRadius.circular(22),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
             children: [
-              Positioned(
-                right: -20,
-                bottom: -20,
-                child: Container(
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.06),
-                    shape: BoxShape.circle,
-                  ),
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(14),
                 ),
+                child: Icon(icon, color: Colors.white, size: 22),
               ),
-              Positioned(
-                right: 20,
-                top: -10,
-                child: Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.06),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(22),
+              const SizedBox(width: 12),
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: Icon(icon, color: Colors.white, size: 28),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(badge, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
-                        ),
-                      ],
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
+                      ),
                     ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(title, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900)),
-                        const SizedBox(height: 4),
-                        Text(subtitle, style: TextStyle(color: Colors.white.withOpacity(0.75), fontSize: 13)),
-                      ],
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.7),
+                        fontWeight: FontWeight.w500,
+                        fontSize: 11,
+                        height: 1.25,
+                      ),
                     ),
                   ],
                 ),
               ),
+              const SizedBox(width: 4),
+              const Icon(
+                Icons.arrow_forward_rounded,
+                color: Colors.white,
+                size: 18,
+              ),
             ],
           ),
         ),
@@ -278,28 +338,141 @@ class _RideOptionCard extends StatelessWidget {
   }
 }
 
-class _StatPill extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
+class _ActionCard extends StatelessWidget {
+  const _ActionCard({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.gradient,
+    required this.chipLabel,
+    required this.onTap,
+  });
 
-  const _StatPill({required this.icon, required this.label, required this.color});
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Gradient gradient;
+  final String chipLabel;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(30),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10),
+        width: double.infinity,
+        padding: const EdgeInsets.all(22),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withOpacity(0.2)),
+          gradient: gradient,
+          borderRadius: BorderRadius.circular(30),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primary.withValues(alpha: 0.22),
+              blurRadius: 24,
+              offset: const Offset(0, 14),
+            ),
+          ],
         ),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: color, size: 20),
-            const SizedBox(height: 5),
-            Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w700), textAlign: TextAlign.center),
+            Row(
+              children: [
+                Container(
+                  width: 54,
+                  height: 54,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Icon(icon, color: Colors.white, size: 28),
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    chipLabel,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 26),
+            Text(
+              title,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 28,
+                fontWeight: FontWeight.w900,
+                height: 1.05,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              subtitle,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.8),
+                fontSize: 14,
+                height: 1.45,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BenefitTile extends StatelessWidget {
+  const _BenefitTile({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 220,
+      child: AppSurfaceCard(
+        padding: const EdgeInsets.all(18),
+        radius: 24,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AppIconBadge(icon: icon, color: color),
+            const SizedBox(height: 14),
+            Text(
+              title,
+              style: const TextStyle(
+                color: AppColors.ink,
+                fontWeight: FontWeight.w800,
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              subtitle,
+              style: const TextStyle(color: AppColors.muted, height: 1.4),
+            ),
           ],
         ),
       ),

@@ -1,7 +1,10 @@
-import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'chat_screen.dart';
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:unipool/screens/chat_screen.dart';
+import 'package:unipool/theme/app_theme.dart';
+import 'package:unipool/widgets/app_ui.dart';
 
 class MyRidesScreen extends StatelessWidget {
   const MyRidesScreen({super.key});
@@ -11,127 +14,156 @@ class MyRidesScreen extends StatelessWidget {
     return DefaultTabController(
       length: 2,
       child: Scaffold(
-        backgroundColor: const Color(0xFFF4F6FB),
-        appBar: AppBar(
-          elevation: 0,
-          flexibleSpace: Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFF0F0C29), Color(0xFF302B63)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
+        body: AppGradientBackground(
+          useSafeArea: false,
+          child: SafeArea(
+            bottom: false,
+            child: Column(
+              children: [
+                AppPageHeader(
+                  title: 'My rides',
+                  subtitle: 'Rides you lead and rides you joined.',
+                  leading: _TopBackButton(
+                    onTap: () => Navigator.of(context).pop(),
+                  ),
+                  badge: const AppPill(
+                    label: 'My activity',
+                    icon: Icons.route_rounded,
+                    foregroundColor: Colors.white,
+                    backgroundColor: Color(0x33FFFFFF),
+                  ),
+                  bottom: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0D1629),
+                      border: Border.all(color: AppColors.line),
+                      borderRadius: BorderRadius.circular(22),
+                    ),
+                    child: const TabBar(
+                      labelColor: Colors.white,
+                      unselectedLabelColor: Color(0xFFB3C0DB),
+                      labelStyle: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
+                      ),
+                      unselectedLabelStyle: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                      indicator: BoxDecoration(
+                        gradient: AppColors.accentGradient,
+                        borderRadius: BorderRadius.all(Radius.circular(16)),
+                      ),
+                      indicatorSize: TabBarIndicatorSize.tab,
+                      tabs: [
+                        Tab(
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.local_taxi_rounded, size: 16),
+                              SizedBox(width: 8),
+                              Text('I am leading'),
+                            ],
+                          ),
+                        ),
+                        Tab(
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.group_rounded, size: 16),
+                              SizedBox(width: 8),
+                              Text('I joined'),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const Expanded(
+                  child: TabBarView(
+                    children: [
+                      RideList(isLeader: true),
+                      RideList(isLeader: false),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
-            onPressed: () => Navigator.of(context).pop(),
-          ),
-          title: const Text('My Activity', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-          bottom: const TabBar(
-            indicatorColor: Color(0xFF9D8FFF),
-            indicatorWeight: 3,
-            labelColor: Colors.white,
-            unselectedLabelColor: Colors.white54,
-            tabs: [
-              Tab(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.outbox_rounded, size: 18),
-                    SizedBox(width: 6),
-                    Text('I am Leading'),
-                  ],
-                ),
-              ),
-              Tab(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.move_to_inbox_rounded, size: 18),
-                    SizedBox(width: 6),
-                    Text('I joined'),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        body: const TabBarView(
-          children: [
-            RideList(isLeader: true),
-            RideList(isLeader: false),
-          ],
         ),
       ),
     );
   }
 }
+
 class RideList extends StatelessWidget {
-  final bool isLeader;
   const RideList({super.key, required this.isLeader});
 
-  // --- LOGIC: Complete Ride ---
-  Future<void> _completeRide(BuildContext context, String rideId, String leaderId) async {
-    try {
-      await FirebaseFirestore.instance
-          .collection('rides')
-          .doc(rideId)
-          .update({'status': 'completed'});
+  final bool isLeader;
 
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(leaderId)
-          .update({
-        'ridesCompleted': FieldValue.increment(1),
+  Future<void> _completeRide(
+    BuildContext context,
+    String rideId,
+    String leaderId,
+  ) async {
+    try {
+      await FirebaseFirestore.instance.collection('rides').doc(rideId).update({
+        'status': 'completed',
       });
 
+      await FirebaseFirestore.instance.collection('users').doc(leaderId).update(
+        {'ridesCompleted': FieldValue.increment(1)},
+      );
+
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Ride marked as completed!')),
-        );
+        showAppSnackBar(context, 'Ride marked as completed.', isError: false);
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-        );
+        showAppSnackBar(context, 'Unable to complete ride: $e', isError: true);
       }
     }
   }
 
-  // --- LOGIC: Delete Ride ---
   Future<void> _deleteRide(BuildContext context, String rideId) async {
-    // Show confirmation dialog
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete Ride?'),
-        content: const Text('Are you sure you want to cancel and delete this ride? This cannot be undone.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true), 
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Delete ride?'),
+          content: const Text(
+            'This will cancel the ride and remove it for everyone. This action cannot be undone.',
           ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Keep'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text(
+                'Delete',
+                style: TextStyle(color: AppColors.danger),
+              ),
+            ),
+          ],
+        );
+      },
     );
 
-    if (confirm != true) return;
+    if (confirm != true) {
+      return;
+    }
 
     try {
       await FirebaseFirestore.instance.collection('rides').doc(rideId).delete();
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Ride deleted successfully.')),
-        );
+        showAppSnackBar(context, 'Ride deleted successfully.', isError: false);
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error deleting: $e'), backgroundColor: Colors.red),
-        );
+        showAppSnackBar(context, 'Error deleting ride: $e', isError: true);
       }
     }
   }
@@ -141,75 +173,156 @@ class RideList extends StatelessWidget {
     final user = FirebaseAuth.instance.currentUser!;
 
     final query = isLeader
-        ? FirebaseFirestore.instance.collection('rides').where('leaderId', isEqualTo: user.uid)
-        : FirebaseFirestore.instance.collection('rides').where('participants', arrayContains: user.uid);
+        ? FirebaseFirestore.instance
+              .collection('rides')
+              .where('leaderId', isEqualTo: user.uid)
+        : FirebaseFirestore.instance
+              .collection('rides')
+              .where('participants', arrayContains: user.uid);
 
-    return StreamBuilder(
+    return StreamBuilder<QuerySnapshot>(
       stream: query.snapshots(),
-      builder: (ctx, AsyncSnapshot<QuerySnapshot> snapshot) {
+      builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator(color: Color(0xFF6C63FF)));
+          return const Center(
+            child: CircularProgressIndicator(color: AppColors.primary),
+          );
         }
-        final docs = snapshot.data?.docs ?? [];
+
+        final docs = snapshot.data?.docs.toList() ?? [];
+        docs.sort((a, b) => _rideDate(b).compareTo(_rideDate(a)));
 
         if (docs.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(isLeader ? Icons.drive_eta_rounded : Icons.person_search_rounded, size: 42, color: Colors.grey),
-                const SizedBox(height: 16),
-                Text(isLeader ? 'No rides posted' : 'No joined rides'),
-              ],
+          return Padding(
+            padding: const EdgeInsets.all(20),
+            child: AppEmptyState(
+              icon: isLeader
+                  ? Icons.local_taxi_rounded
+                  : Icons.travel_explore_rounded,
+              title: isLeader ? 'No rides posted yet' : 'No joined rides yet',
+              subtitle: isLeader
+                  ? 'Create a ride from the home screen.'
+                  : 'Join a ride to see it here.',
             ),
           );
         }
 
         return ListView.builder(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
           itemCount: docs.length,
-          padding: const EdgeInsets.all(15),
-          itemBuilder: (ctx, index) {
+          itemBuilder: (context, index) {
             final ride = docs[index];
-            final String status = ride['status'] ?? 'open';
+            final status = (ride['status'] ?? 'open').toString();
 
-            return Card(
-              margin: const EdgeInsets.only(bottom: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              child: ListTile(
-                title: Text('${ride['source']} → ${ride['destination']}', 
-                    style: const TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: Text("Status: ${status.toUpperCase()}",
-                    style: TextStyle(color: status == 'open' ? Colors.green : Colors.grey, fontSize: 12)),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: AppSurfaceCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // DELETE BUTTON (Only for Leaders)
-                    if (isLeader)
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
-                        onPressed: () => _deleteRide(context, ride.id),
-                      ),
-                    
-                    // COMPLETE BUTTON (Only if Open)
-                    if (isLeader && status == 'open')
-                      IconButton(
-                        icon: const Icon(Icons.check_circle_outline_rounded, color: Colors.green),
-                        onPressed: () => _completeRide(context, ride.id, user.uid),
-                      ),
-
-                    // CHAT BUTTON
-                    IconButton(
-                      icon: const Icon(Icons.chat_bubble_outline_rounded, color: Color(0xFF6C63FF)),
-                      onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (ctx) => ChatScreen(
-                              rideId: ride.id,
-                              rideDestination: ride['destination'],
+                    Row(
+                      children: [
+                        AppIconBadge(
+                          icon: isLeader
+                              ? Icons.local_taxi_rounded
+                              : Icons.group_outlined,
+                          color: isLeader
+                              ? AppColors.primary
+                              : AppColors.secondary,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${ride['source']} to ${ride['destination']}',
+                                style: const TextStyle(
+                                  color: AppColors.ink,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 17,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                DateFormat(
+                                  'EEE, d MMM yyyy',
+                                ).format(_rideDate(ride)),
+                                style: const TextStyle(
+                                  color: AppColors.muted,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        AppPill(
+                          label: status.toUpperCase(),
+                          foregroundColor: _statusColor(status),
+                          backgroundColor: _statusColor(
+                            status,
+                          ).withValues(alpha: 0.12),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        AppPill(
+                          label: isLeader ? 'You are leading' : 'Joined ride',
+                          icon: isLeader
+                              ? Icons.workspace_premium_outlined
+                              : Icons.verified_user_outlined,
+                        ),
+                        AppPill(
+                          label: ride['leaderName'] ?? 'Student',
+                          icon: Icons.person_outline_rounded,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => ChatScreen(
+                                  rideId: ride.id,
+                                  rideDestination: ride['destination'],
+                                ),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.chat_bubble_outline_rounded),
+                          label: const Text('Open chat'),
+                        ),
+                        if (isLeader && status == 'open')
+                          FilledButton.icon(
+                            onPressed: () =>
+                                _completeRide(context, ride.id, user.uid),
+                            icon: const Icon(
+                              Icons.check_circle_outline_rounded,
+                            ),
+                            label: const Text('Mark complete'),
+                          ),
+                        if (isLeader)
+                          OutlinedButton.icon(
+                            onPressed: () => _deleteRide(context, ride.id),
+                            icon: const Icon(
+                              Icons.delete_outline_rounded,
+                              color: AppColors.danger,
+                            ),
+                            label: const Text(
+                              'Delete',
+                              style: TextStyle(color: AppColors.danger),
                             ),
                           ),
-                        );
-                      },
+                      ],
                     ),
                   ],
                 ),
@@ -218,6 +331,48 @@ class RideList extends StatelessWidget {
           },
         );
       },
+    );
+  }
+
+  DateTime _rideDate(DocumentSnapshot ride) {
+    return DateTime.tryParse(ride['rideDate'].toString()) ?? DateTime.now();
+  }
+
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'completed':
+        return AppColors.secondary;
+      case 'open':
+        return AppColors.success;
+      default:
+        return AppColors.muted;
+    }
+  }
+}
+
+class _TopBackButton extends StatelessWidget {
+  const _TopBackButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: const SizedBox(
+          width: 44,
+          height: 44,
+          child: Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: Colors.white,
+            size: 18,
+          ),
+        ),
+      ),
     );
   }
 }

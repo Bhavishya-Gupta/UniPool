@@ -1,6 +1,10 @@
-import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:unipool/data/ride_locations.dart';
 import 'package:unipool/screens/chat_screen.dart';
+import 'package:unipool/theme/app_theme.dart';
+import 'package:unipool/widgets/app_ui.dart';
 
 class FindRideScreen extends StatefulWidget {
   const FindRideScreen({super.key});
@@ -10,263 +14,142 @@ class FindRideScreen extends StatefulWidget {
 }
 
 class _FindRideScreenState extends State<FindRideScreen> {
-  // Use the exact same locations as your CreateRideScreen
-  final List<String> _locations = [
-    'All Locations',
-    'Hall 1', 'Hall 2', 'Hall 3', 'Hall 4', 'Hall 12', 'Hall 13',
-    'Academic Area', 'Library', 'Main Gate', 'Health Centre', 'Shopping Centre',
-    'IIT Kanpur', 'Kalyanpur Metro', 'SPM Hospital', 'Vishwavidyalaya',
-    'Gurudev Chauraha', 'Geeta Nagar', 'Rawatpur', 'GSVM Medical College',
-    'Moti Jheel', 'Chunniganj', 'Naveen Market', 'Bada Chauraha', 'Nayaganj',
-    'Kanpur Central Railway Station', 'Lucknow Airport',
-  ];
-
-  String _filterDestination = 'All Locations';
+  String _filterDestination = allLocationsLabel;
 
   @override
   Widget build(BuildContext context) {
-    // Build the query based on selection [cite: 67]
     Query query = FirebaseFirestore.instance
         .collection('rides')
         .where('status', isEqualTo: 'open');
 
-    if (_filterDestination != 'All Locations') {
+    if (_filterDestination != allLocationsLabel) {
       query = query.where('destination', isEqualTo: _filterDestination);
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F6FB),
-      appBar: AppBar(
-        elevation: 0,
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFF0F0C29), Color(0xFF302B63)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-        ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: const Text('Available Rides', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-      ),
-      body: Column(
-        children: [
-          // --- NEW FILTER BAR ---
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 2)),
-              ],
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.filter_list_rounded, color: Color(0xFF6C63FF), size: 20),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: _filterDestination,
-                      isExpanded: true,
-                      icon: Icon(Icons.keyboard_arrow_down_rounded, color: Colors.grey[400]),
-                      style: const TextStyle(color: Color(0xFF0F0C29), fontWeight: FontWeight.w600, fontSize: 14),
-                      items: _locations.map((loc) {
-                        return DropdownMenuItem(value: loc, child: Text(loc));
-                      }).toList(),
-                      onChanged: (val) {
-                        setState(() {
-                          _filterDestination = val!;
-                        });
-                      },
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          
-          // --- RIDES LIST (Moved inside Expanded) ---
-          Expanded(
-            child: StreamBuilder(
-              stream: query.snapshots(),
-              builder: (ctx, AsyncSnapshot<QuerySnapshot> snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator(color: Color(0xFF6C63FF)));
-                }
-
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(24),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF6C63FF).withOpacity(0.1),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(Icons.search_off_rounded, size: 48, color: Color(0xFF6C63FF)),
-                        ),
-                        const SizedBox(height: 18),
-                        const Text('No rides found', 
-                          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: Color(0xFF0F0C29))),
-                        const SizedBox(height: 6),
-                        Text('Try changing your destination filter!', style: TextStyle(color: Colors.grey[500], fontSize: 14)),
-                      ],
-                    ),
-                  );
-                }
-
-                final rideDocs = snapshot.data!.docs;
-                return ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: rideDocs.length,
-                  itemBuilder: (ctx, index) {
-                    var ride = rideDocs[index];
-                    return _RideCard(
-                      ride: ride,
-                      onTap: () => _showRideDetails(context, ride),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Keeping your existing detail dialog and helper methods exactly as they were [cite: 76, 106]
-  void _showRideDetails(BuildContext context, DocumentSnapshot ride) async {
-    final leaderData = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(ride['leaderId'])
-        .get();
-    final ridesCount = (leaderData.exists && (leaderData.data() as Map).containsKey('ridesCompleted'))
-        ? leaderData['ridesCompleted']
-        : 0;
-
-    showDialog(
-      context: context,
-      builder: (ctx) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        backgroundColor: Colors.white,
-        child: Padding(
-          padding: const EdgeInsets.all(24),
+      body: AppGradientBackground(
+        useSafeArea: false,
+        child: SafeArea(
+          bottom: false,
           child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(colors: [Color(0xFF6C63FF), Color(0xFFB06AB3)]),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(Icons.directions_car_rounded, color: Colors.white, size: 22),
-                  ),
-                  const SizedBox(width: 12),
-                  const Text('Ride Details', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF0F0C29))),
-                ],
-              ),
-              const SizedBox(height: 20),
-              _detailRow(Icons.my_location_rounded, 'From', ride['source'], const Color(0xFF6C63FF)),
-              const SizedBox(height: 12),
-              _detailRow(Icons.location_on_rounded, 'To', ride['destination'], const Color(0xFFB06AB3)),
-              const SizedBox(height: 12),
-              _detailRow(Icons.calendar_today_rounded, 'Date', ride['rideDate'].toString().split('T')[0], const Color(0xFF00B4DB)),
-              const SizedBox(height: 20),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF4F6FB),
-                  borderRadius: BorderRadius.circular(16),
+              AppPageHeader(
+                title: 'Find a ride',
+                subtitle: 'Browse open rides by destination.',
+                leading: _TopBackButton(
+                  onTap: () => Navigator.of(context).pop(),
                 ),
-                child: Row(
+                badge: const AppPill(
+                  label: 'Pooler mode',
+                  icon: Icons.travel_explore_rounded,
+                  foregroundColor: Colors.white,
+                  backgroundColor: Color(0x33FFFFFF),
+                ),
+              ),
+              Expanded(
+                child: Column(
                   children: [
-                    CircleAvatar(
-                      radius: 24,
-                      backgroundColor: const Color(0xFF302B63),
-                      child: Text(
-                        ride['leaderName'].toString().isNotEmpty ? ride['leaderName'].toString()[0].toUpperCase() : '?',
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(ride['leaderName'], style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF0F0C29))),
-                        const SizedBox(height: 4),
-                        Row(
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 14),
+                      child: AppSurfaceCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Icon(Icons.verified_rounded, color: Color(0xFF22C55E), size: 14),
-                            const SizedBox(width: 4),
-                            Text('$ridesCount rides completed', style: const TextStyle(color: Color(0xFF22C55E), fontWeight: FontWeight.w600, fontSize: 12)),
+                            const Text(
+                              'Destination filter',
+                              style: TextStyle(
+                                color: AppColors.ink,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 16,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            const Text(
+                              'Narrow the list when you already know where you want to go.',
+                              style: TextStyle(
+                                color: AppColors.muted,
+                                height: 1.4,
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                            DropdownButtonFormField<String>(
+                              initialValue: _filterDestination,
+                              decoration: const InputDecoration(
+                                labelText: 'Destination',
+                                prefixIcon: Icon(
+                                  Icons.filter_list_rounded,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                              items: [allLocationsLabel, ...rideLocations]
+                                  .map(
+                                    (location) => DropdownMenuItem<String>(
+                                      value: location,
+                                      child: Text(
+                                        location,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged: (value) {
+                                if (value != null) {
+                                  setState(() => _filterDestination = value);
+                                }
+                              },
+                            ),
                           ],
                         ),
-                      ],
+                      ),
+                    ),
+                    Expanded(
+                      child: StreamBuilder<QuerySnapshot>(
+                        stream: query.snapshots(),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return const Center(
+                              child: CircularProgressIndicator(
+                                color: AppColors.primary,
+                              ),
+                            );
+                          }
+
+                          if (!snapshot.hasData ||
+                              snapshot.data!.docs.isEmpty) {
+                            return AppEmptyState(
+                              icon: Icons.search_off_rounded,
+                              title: 'No rides found',
+                              subtitle: _filterDestination == allLocationsLabel
+                                  ? 'There are no open rides right now.'
+                                  : 'Try another destination or switch back to all locations.',
+                            );
+                          }
+
+                          final rideDocs = snapshot.data!.docs.toList()
+                            ..sort(
+                              (a, b) => _rideDate(b).compareTo(_rideDate(a)),
+                            );
+
+                          return ListView.builder(
+                            padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                            itemCount: rideDocs.length,
+                            itemBuilder: (context, index) {
+                              final ride = rideDocs[index];
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 14),
+                                child: _RideCard(
+                                  ride: ride,
+                                  onTap: () => _showRideDetails(context, ride),
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      ),
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(ctx),
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Color(0xFFE0E0F0)),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      child: const Text('Close', style: TextStyle(color: Color(0xFF302B63), fontWeight: FontWeight.w600)),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    flex: 2,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(colors: [Color(0xFF6C63FF), Color(0xFFB06AB3)]),
-                        borderRadius: BorderRadius.circular(14),
-                        boxShadow: [
-                          BoxShadow(color: const Color(0xFF6C63FF).withOpacity(0.4), blurRadius: 14, offset: const Offset(0, 6)),
-                        ],
-                      ),
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.pop(ctx);
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (ctx) => ChatScreen(
-                                rideId: ride.id,
-                                rideDestination: ride['destination'],
-                              ),
-                            ),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.transparent,
-                          shadowColor: Colors.transparent,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                        icon: const Icon(Icons.bolt_rounded, color: Colors.white, size: 18),
-                        label: const Text('Join & Chat', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-                      ),
-                    ),
-                  ),
-                ],
               ),
             ],
           ),
@@ -275,99 +158,327 @@ class _FindRideScreenState extends State<FindRideScreen> {
     );
   }
 
-  Widget _detailRow(IconData icon, String label, String value, Color color) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(10),
+  Future<void> _showRideDetails(
+    BuildContext context,
+    DocumentSnapshot ride,
+  ) async {
+    final leaderData = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(ride['leaderId'])
+        .get();
+    final leaderMap = leaderData.data();
+    final ridesCount = leaderMap?['ridesCompleted'] ?? 0;
+
+    if (!context.mounted) {
+      return;
+    }
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: AppSurfaceCard(
+              radius: 30,
+              padding: const EdgeInsets.all(22),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const AppIconBadge(
+                        icon: Icons.directions_car_filled_rounded,
+                        color: AppColors.primary,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Ride details',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  _DetailRow(
+                    label: 'From',
+                    value: ride['source'],
+                    color: AppColors.primary,
+                    icon: Icons.my_location_rounded,
+                  ),
+                  const SizedBox(height: 12),
+                  _DetailRow(
+                    label: 'To',
+                    value: ride['destination'],
+                    color: AppColors.accent,
+                    icon: Icons.place_rounded,
+                  ),
+                  const SizedBox(height: 12),
+                  _DetailRow(
+                    label: 'Date',
+                    value: DateFormat(
+                      'EEEE, d MMM yyyy',
+                    ).format(_rideDate(ride)),
+                    color: AppColors.secondary,
+                    icon: Icons.calendar_month_rounded,
+                  ),
+                  const SizedBox(height: 18),
+                  AppSurfaceCard(
+                    color: AppColors.surfaceSoft,
+                    radius: 24,
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 26,
+                          backgroundColor: AppColors.primary,
+                          child: Text(
+                            ride['leaderName'].toString().isNotEmpty
+                                ? ride['leaderName'].toString()[0].toUpperCase()
+                                : '?',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                ride['leaderName'],
+                                style: const TextStyle(
+                                  color: AppColors.ink,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '$ridesCount rides completed',
+                                style: const TextStyle(
+                                  color: AppColors.muted,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const AppPill(
+                          label: 'Open',
+                          foregroundColor: AppColors.success,
+                          backgroundColor: Color(0xFFE7F7EC),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          child: const Text('Close'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 2,
+                        child: AppPrimaryButton(
+                          label: 'Join and chat',
+                          icon: Icons.chat_rounded,
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => ChatScreen(
+                                  rideId: ride.id,
+                                  rideDestination: ride['destination'],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ),
-          child: Icon(icon, color: color, size: 16),
+        );
+      },
+    );
+  }
+
+  DateTime _rideDate(DocumentSnapshot ride) {
+    final rawDate = ride['rideDate'];
+    return DateTime.tryParse(rawDate.toString()) ?? DateTime.now();
+  }
+}
+
+class _TopBackButton extends StatelessWidget {
+  const _TopBackButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: const SizedBox(
+          width: 44,
+          height: 44,
+          child: Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: Colors.white,
+            size: 18,
+          ),
         ),
-        const SizedBox(width: 12),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label, style: TextStyle(fontSize: 11, color: Colors.grey[400], fontWeight: FontWeight.w600)),
-            Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF1A1A2E))),
-          ],
-        ),
-      ],
+      ),
     );
   }
 }
 
 class _RideCard extends StatelessWidget {
+  const _RideCard({required this.ride, required this.onTap});
+
   final DocumentSnapshot ride;
   final VoidCallback onTap;
 
-  const _RideCard({required this.ride, required this.onTap});
-
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.07), blurRadius: 16, offset: const Offset(0, 4)),
-        ],
-      ),
+    final date =
+        DateTime.tryParse(ride['rideDate'].toString()) ?? DateTime.now();
+
+    return AppSurfaceCard(
+      padding: EdgeInsets.zero,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(26),
         child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [Color(0xFF6C63FF), Color(0xFFB06AB3)]),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: const Icon(Icons.directions_car_rounded, color: Colors.white, size: 24),
+              Row(
+                children: [
+                  const AppIconBadge(
+                    icon: Icons.local_taxi_rounded,
+                    color: AppColors.primary,
+                  ),
+                  const Spacer(),
+                  const AppPill(
+                    label: 'Open',
+                    foregroundColor: AppColors.success,
+                    backgroundColor: Color(0xFFE7F7EC),
+                  ),
+                ],
               ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${ride['source']} → ${ride['destination']}',
-                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: Color(0xFF0F0C29)),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 5),
-                    Row(
-                      children: [
-                        Icon(Icons.person_rounded, size: 13, color: Colors.grey[400]),
-                        const SizedBox(width: 4),
-                        Text(ride['leaderName'], style: TextStyle(fontSize: 12, color: Colors.grey[500])),
-                        const SizedBox(width: 10),
-                        Icon(Icons.calendar_today_rounded, size: 13, color: Colors.grey[400]),
-                        const SizedBox(width: 4),
-                        Text(ride['rideDate'].toString().split('T')[0], style: TextStyle(fontSize: 12, color: Colors.grey[500])),
-                      ],
-                    ),
-                  ],
+              const SizedBox(height: 16),
+              Text(
+                '${ride['source']} to ${ride['destination']}',
+                style: const TextStyle(
+                  color: AppColors.ink,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF22C55E).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Text('Open', style: TextStyle(color: Color(0xFF22C55E), fontWeight: FontWeight.w700, fontSize: 12)),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  AppPill(
+                    label: ride['leaderName'],
+                    icon: Icons.person_outline_rounded,
+                  ),
+                  AppPill(
+                    label: DateFormat('d MMM').format(date),
+                    icon: Icons.calendar_today_rounded,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              const Row(
+                children: [
+                  Text(
+                    'Tap to review the ride and open chat',
+                    style: TextStyle(
+                      color: AppColors.muted,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  SizedBox(width: 8),
+                  Icon(
+                    Icons.arrow_forward_rounded,
+                    color: AppColors.muted,
+                    size: 18,
+                  ),
+                ],
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+class _DetailRow extends StatelessWidget {
+  const _DetailRow({
+    required this.label,
+    required this.value,
+    required this.color,
+    required this.icon,
+  });
+
+  final String label;
+  final String value;
+  final Color color;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        AppIconBadge(icon: icon, color: color),
+        const SizedBox(width: 12),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                color: AppColors.muted,
+                fontWeight: FontWeight.w700,
+                fontSize: 12,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              value,
+              style: const TextStyle(
+                color: AppColors.ink,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
